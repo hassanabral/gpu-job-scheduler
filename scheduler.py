@@ -14,7 +14,9 @@ You will implement:
 import heapq
 import threading
 from sdk_do_not_edit import Job, JobStatus
+from dependency_resolver import build_dependency_graph
 
+MAX_RETRIES = 2
 
 class JobScheduler:
     """
@@ -30,19 +32,19 @@ class JobScheduler:
             jobs: All jobs to schedule
             execution_order: Valid execution order from topological sort
         """
-        # TODO 7: Initialize the scheduler:
-        #   - self._lock = threading.Lock()
-        #   - self._jobs = {job.id: job for job in jobs}
-        #   - self._status = {job.id: JobStatus.PENDING for job in jobs}
-        #   - self._ready_queue = []  (heap: list of (-priority, job_id) tuples -- negate for max-heap)
-        #   - self._retries = {job.id: 0 for job in jobs}  (retry count per job)
-        #   - self._completion_event = threading.Event()
-        #
-        # Initialize ready queue with jobs that have no dependencies:
-        #   - For each job, if len(job.dependencies) == 0:
-        #       - Set status to READY
-        #       - Push (-job.priority, job.id) onto self._ready_queue using heapq.heappush
-        pass
+        self._jobs = {job.id: job for job in jobs}
+        self._adjacency, _ = build_dependency_graph(jobs)
+        self._status = {job.id: JobStatus.PENDING for job in jobs}
+        self._retries = {job.id: 0 for job in jobs}
+        self._ready_jobs = [] # max heap (-priority, job_id)
+        self._lock = threading.Lock() # for thread-safe access to ordered jobs
+        self._completion_event = threading.Event()
+
+        # init ready jobs
+        for job in jobs:
+            if len(job.dependencies) == 0:
+                self._status[job.id] = JobStatus.READY
+                heapq.heappush(self._ready_jobs, (-job.priority, job.id))
 
     def get_next_ready_job(self, timeout: float = 5.0) -> Job | None:
         """
@@ -54,25 +56,31 @@ class JobScheduler:
         Returns:
             Job if one is ready, None if no ready jobs
         """
-        # TODO 8: Acquire self._lock, then:
-        #   - If self._ready_queue is empty, return None
-        #   - Pop from the heap using heapq.heappop
-        #   - Set that job's status to RUNNING
-        #   - Return the Job object
-        pass
+        with self._lock:
+            if not len(self._ready_jobs):
+                return None
+            _, job_id = heapq.heappop(self._ready_jobs) 
+            job = self._jobs[job_id]
+            self._status[job_id] = JobStatus.RUNNING
+            
+            return job
 
     def mark_completed(self, job_id: str) -> None:
         """
         Mark a job as completed and promote its dependents to READY if all their deps are done.
         """
-        # TODO 9: Acquire self._lock, then:
-        #   - Set self._status[job_id] = JobStatus.COMPLETED
-        #   - For each job in self._jobs.values():
-        #       - If job's status is PENDING and job_id is in job.dependencies:
-        #           - Check if ALL of job.dependencies are now COMPLETED
-        #           - If yes: set status to READY, push onto self._ready_queue
-        #   - If all jobs are COMPLETED or FAILED, set self._completion_event
-        pass
+        with self._lock:
+            self._status[job_id] = JobStatus.COMPLETED
+            # set the next job's status to READY
+            for next_job in self._adjacency[job_id]:
+                if self._status[next_job] == JobStatus.PENDING:
+                    # check if all of next jobs dependency jobs are complete
+                    if all(self._status[d] == JobStatus.COMPLETED for d in self._jobs[next_job].dependencies):
+                        self._status[next_job] = JobStatus.READY
+                        heapq.heappush(self._ready_jobs, (-self._jobs[next_job].priority, next_job))
+
+            if self._is_complete_unlocked():
+                self._completion_event.set()
 
     def mark_failed(self, job_id: str) -> bool:
         """
@@ -81,25 +89,32 @@ class JobScheduler:
         Max retries: 2. If retries remain, re-enqueue as READY.
         If no retries left, mark as FAILED permanently.
         """
-        # TODO 10: Acquire self._lock, then:
-        #   - Increment self._retries[job_id]
-        #   - If self._retries[job_id] <= 2:
-        #       - Set status to READY
-        #       - Push back onto ready_queue
-        #       - Return True (will retry)
-        #   - Else:
-        #       - Set status to FAILED
-        #       - Check if all jobs are done (COMPLETED or FAILED), set completion_event
-        #       - Return False (permanently failed)
-        pass
+        with self._lock:
+            self._retries[job_id] += 1
+            if self._retries[job_id] <= MAX_RETRIES:
+                self._status[job_id] = JobStatus.READY
+                heapq.heappush(self._ready_jobs, (-self._jobs[job_id].priority, job_id))
+
+                return True
+            
+            self._status[job_id] = JobStatus.FAILED
+
+            if self._is_complete_unlocked():
+                self._completion_event.set()
+            return False
+
+    
+    def _is_complete_unlocked(self) -> bool:
+        return all(
+                s in (JobStatus.COMPLETED, JobStatus.FAILED)
+                for s in self._status.values()
+            )
 
     def is_complete(self) -> bool:
         """Check if all jobs are in a terminal state."""
         with self._lock:
-            return all(
-                s in (JobStatus.COMPLETED, JobStatus.FAILED)
-                for s in self._status.values()
-            )
+            return self._is_complete_unlocked()
+            
 
     def wait_for_completion(self, timeout: float = 60.0) -> bool:
         """Wait for all jobs to complete or fail."""
