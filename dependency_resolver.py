@@ -1,4 +1,6 @@
 from __future__ import annotations
+from collections import defaultdict, deque
+import heapq
 
 """
 Job Dependency Resolver
@@ -32,14 +34,19 @@ def build_dependency_graph(jobs: list[Job]) -> tuple[dict[str, list[str]], dict[
           (i.e., if B depends on A, then adjacency[A] contains B)
         - in_degree: dict mapping job_id -> number of dependencies it has
     """
-    # TODO 4: Build the graph:
-    #   - Initialize adjacency = {job.id: [] for job in jobs}
-    #   - Initialize in_degree = {job.id: 0 for job in jobs}
-    #   - For each job, for each dep in job.dependencies:
-    #       - Add job.id to adjacency[dep] (dep must complete before job can run)
-    #       - Increment in_degree[job.id]
-    #   - Return (adjacency, in_degree)
-    pass
+    adjacency = {}
+    in_degree = {}
+
+    for job in jobs:
+        adjacency[job.id] = []
+        in_degree[job.id] = 0
+
+    for job in jobs:
+        for dep in job.dependencies:
+            adjacency[dep].append(job.id)
+            in_degree[job.id] += 1
+    
+    return (adjacency, in_degree)
 
 
 def topological_sort(jobs: list[Job]) -> list[str]:
@@ -58,21 +65,33 @@ def topological_sort(jobs: list[Job]) -> list[str]:
     Raises:
         CyclicDependencyError: If dependencies contain a cycle
     """
-    # TODO 5: Implement Kahn's algorithm:
-    #   - Call build_dependency_graph(jobs) to get adjacency and in_degree
-    #   - Create a job_map: dict mapping job_id -> Job (for priority lookup)
-    #   - Initialize a list (queue) with all jobs where in_degree == 0
-    #   - Sort this initial queue by priority descending (highest priority first)
-    #   - While the queue is not empty:
-    #       - Pop the first job_id from the queue
-    #       - Add it to the result list
-    #       - For each dependent in adjacency[job_id]:
-    #           - Decrement in_degree[dependent]
-    #           - If in_degree[dependent] == 0, add to queue
-    #       - Re-sort queue by priority descending
-    #   - Return the result list
-    #
-    # TODO 6: Check for cycles:
-    #   - After the algorithm, if len(result) != len(jobs), there's a cycle
-    #   - Raise CyclicDependencyError with the job IDs that weren't processed
-    pass
+    adjacency, in_degree = build_dependency_graph(jobs)
+
+    # build {job_id: job}
+    jid_to_job = {job.id: job for job in jobs}
+
+    # create queue with jobs with in degree of 0
+    queue = []
+    for job_id, indegree in in_degree.items():
+        if indegree == 0:
+            heapq.heappush(queue, (-jid_to_job[job_id].priority, job_id))
+
+
+    ordered_jobs = []
+
+    while queue:
+        # pop from queue
+        _, job = heapq.heappop(queue)
+        ordered_jobs.append(job)
+
+        # decrement next jobs in degree and add to queue if it's 0
+        for next_job in adjacency[job]:
+            in_degree[next_job] -= 1
+            if in_degree[next_job] == 0:
+                heapq.heappush(queue, (-jid_to_job[next_job].priority, next_job))
+    
+    # detect cycle
+    if len(ordered_jobs) != len(jobs):
+        raise CyclicDependencyError("Cycle detected in job dependencies")
+    
+    return ordered_jobs
