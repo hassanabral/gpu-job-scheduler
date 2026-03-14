@@ -42,26 +42,36 @@ def worker(
         resource_manager: The GPU resource manager
         stop_event: Event that signals shutdown
     """
-    # TODO 11: Loop until stop_event is set or scheduler.is_complete():
-    #   - Call scheduler.get_next_ready_job()
-    #   - If None (no ready jobs): sleep 0.2 seconds and continue
-    #   - Display: display_job_update(job.id, "ACQUIRING", "", f"Worker {worker_id} acquiring {job.gpu_count} GPUs")
-    #   - Call resource_manager.acquire_gpus(job.id, job.gpu_count)
-    #   - If allocation is None (timeout/shutdown):
-    #       scheduler.mark_failed(job.id) and continue
-    #
-    # TODO 12: Execute the job:
-    #   - Display: display_job_update(job.id, "RUNNING", allocation.node_id, f"Worker {worker_id} executing")
-    #   - Try: result = sdk.execute_job(job.id, allocation)
-    #   - If result.success:
-    #       - Display: display_job_update(job.id, "COMPLETED", allocation.node_id, f"Done in {result.duration_ms}ms")
-    #       - Call scheduler.mark_completed(job.id)
-    #   - Else (result.success is False):
-    #       - retrying = scheduler.mark_failed(job.id)
-    #       - Display appropriate message (retrying or permanently failed)
-    #   - Except JobExecutionError:
-    #       - retrying = scheduler.mark_failed(job.id)
-    #       - Display error message
-    #   - Finally: ALWAYS call resource_manager.release_gpus(job.id)
-    #     (this is critical -- forgetting this causes deadlocks!)
-    pass
+    while not stop_event.is_set() and not scheduler.is_complete():
+        job = None
+        try:
+            job = scheduler.get_next_ready_job()
+            if job is None:
+                time.sleep(0.2)
+                continue
+                
+            display_job_update(job.id, "ACQUIRING", "", f"Worker {worker_id} acquiring {job.gpu_count} GPUs")
+            alloc_gpu = resource_manager.acquire_gpus(job.id, job.gpu_count)
+            
+            if alloc_gpu is None:
+                scheduler.mark_failed(job.id)
+                continue
+
+            try:
+                display_job_update(job.id, "RUNNING", alloc_gpu.node_id, f"Worker {worker_id} executing")
+                result = sdk.execute_job(job.id, alloc_gpu)
+                if result.success:
+                    display_job_update(job.id, "COMPLETED", alloc_gpu.node_id, f"Done in {result.duration_ms}ms")
+                    scheduler.mark_completed(job.id)
+                else:
+                    retrying = scheduler.mark_failed(job.id)
+            except JobExecutionError as e:
+                retrying = scheduler.mark_failed(job.id)
+                print(f"Error executing job {job.id}", e)
+            finally:
+                resource_manager.release_gpus(job.id)
+
+        except Exception as e:
+            if job is not None:
+                scheduler.mark_failed(job.id)
+            print(f"Error allocating worker {worker_id}", e)
