@@ -36,6 +36,7 @@ class ResourceManager:
         self._cond = threading.Condition()
         self._available = {node.id: node.available_gpus for node in self._cluster.nodes}
         self._allocations = {}
+        self._allocation_history = {}  # persists after release for reporting
         self._shutdown = False
 
     def acquire_gpus(self, job_id: str, gpu_count: int, timeout: float = 30.0) -> GpuAllocation | None:
@@ -66,6 +67,7 @@ class ResourceManager:
                         # allocate gpus
                         alloc_gpu = self._sdk.allocate_gpus(target_node, gpu_count, job_id)
                         self._allocations[job_id] = alloc_gpu
+                        self._allocation_history[job_id] = {'node_id': target_node, 'gpu_count': gpu_count}
                         self._available[target_node] -= gpu_count
                         return alloc_gpu
                     except InsufficientResourcesError as e:

@@ -62,8 +62,7 @@ class ShutdownHandler:
         """
         Final cleanup after all threads have stopped.
         """
-        for job_id, alloc in self._resource_manager._allocations.items():
-            if len(alloc) > 0:
-                self._resource_manager.release_gpus(job_id)
+        for job_id in list(self._resource_manager._allocations.keys()):
+            self._resource_manager.release_gpus(job_id)
         
         print("Cleanup complete.")

@@ -36,6 +36,7 @@ class JobScheduler:
         self._adjacency, _ = build_dependency_graph(jobs)
         self._status = {job.id: JobStatus.PENDING for job in jobs}
         self._retries = {job.id: 0 for job in jobs}
+        self._durations = {job.id: 0 for job in jobs}
         self._ready_jobs = [] # max heap (-priority, job_id)
         self._lock = threading.Lock() # for thread-safe access to ordered jobs
         self._completion_event = threading.Event()
@@ -65,12 +66,13 @@ class JobScheduler:
             
             return job
 
-    def mark_completed(self, job_id: str) -> None:
+    def mark_completed(self, job_id: str, duration_ms: int = 0) -> None:
         """
         Mark a job as completed and promote its dependents to READY if all their deps are done.
         """
         with self._lock:
             self._status[job_id] = JobStatus.COMPLETED
+            self._durations[job_id] = duration_ms
             # set the next job's status to READY
             for next_job in self._adjacency[job_id]:
                 if self._status[next_job] == JobStatus.PENDING:
@@ -127,6 +129,7 @@ class JobScheduler:
                 job_id: {
                     "status": status.value,
                     "retries": self._retries[job_id],
+                    "duration_ms": self._durations[job_id],
                 }
                 for job_id, status in self._status.items()
             }

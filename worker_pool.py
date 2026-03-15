@@ -68,7 +68,7 @@ def worker(
                 result = sdk.execute_job(job.id, alloc_gpu)
                 if result.success:
                     display_job_update(job.id, "COMPLETED", alloc_gpu.node_id, f"Done in {result.duration_ms}ms")
-                    scheduler.mark_completed(job.id)
+                    scheduler.mark_completed(job.id, duration_ms=result.duration_ms)
                 else:
                     retrying = scheduler.mark_failed(job.id)
             except JobExecutionError as e:

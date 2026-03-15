@@ -73,6 +73,7 @@ def run():
     wthreads = []
     for i in range(MAX_WORKERS):
         wthread = threading.Thread(target=worker, args=(i, sdk, scheduler, resource_manager, stop_event), daemon=True)
+        wthreads.append(wthread)
 
     # start worker threads
     for wthread in wthreads:
@@ -90,7 +91,7 @@ def run():
     
     shutdown_handler.cleanup()
 
-    elapsted = time.time() - start_time
+    elapsed = time.time() - start_time
     result = scheduler.get_status_summary()
 
     total_jobs = 0
@@ -102,33 +103,27 @@ def run():
     # run calculations
     for job_id, summary in result.items():
         status = summary['status']
-        allocation = resource_manager._allocations[job_id]
-        if status == JobStatus.COMPLETED:
+        history = resource_manager._allocation_history.get(job_id, {})
+        if status == JobStatus.COMPLETED.value:
             total_completed += 1
-            gpu_utilization += allocation['gpu_count']
-        if status == JobStatus.FAILED:
+            gpu_utilization += history.get('gpu_count', 0)
+        if status == JobStatus.FAILED.value:
             total_failed += 1
         total_jobs += 1
         job_results.append({
             'job_id': job_id,
             'status': status,
-            'duration_ms': 0,
-            'node': allocation['node_id'],
+            'duration_ms': summary['duration_ms'],
+            'node': history.get('node_id', 'N/A'),
             'retries': summary['retries']
         })
-        
-
 
     display_final_summary({
         "total_jobs": total_jobs,
         "completed": total_completed,
         "failed": total_failed,
-        "total_time": elapsted,
-        "job_results": [
-            {"job_id": str, "status": str, "duration_ms": int,
-             "node": str, "retries": int},
-            ...
-        ],
-        "gpu_utilization": float,
+        "total_time": elapsed,
+        "job_results": job_results,
+        "gpu_utilization": gpu_utilization,
     })
     
