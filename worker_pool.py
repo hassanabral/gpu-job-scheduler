@@ -42,21 +42,27 @@ def worker(
         resource_manager: The GPU resource manager
         stop_event: Event that signals shutdown
     """
+    # while stop event is not set and not all jobs are complete
     while not stop_event.is_set() and not scheduler.is_complete():
         job = None
         try:
+            # get's the next ready job from scheduler
             job = scheduler.get_next_ready_job()
+            # if no job available, sleep and retry
             if job is None:
                 time.sleep(0.2)
                 continue
                 
+            # allocate gpus for the job
             display_job_update(job.id, "ACQUIRING", "", f"Worker {worker_id} acquiring {job.gpu_count} GPUs")
             alloc_gpu = resource_manager.acquire_gpus(job.id, job.gpu_count)
             
+            # if allocation fails, mark the job as failed as continue
             if alloc_gpu is None:
                 scheduler.mark_failed(job.id)
                 continue
 
+            # if allocation is successful, mark the job based on execution result
             try:
                 display_job_update(job.id, "RUNNING", alloc_gpu.node_id, f"Worker {worker_id} executing")
                 result = sdk.execute_job(job.id, alloc_gpu)
@@ -69,6 +75,7 @@ def worker(
                 retrying = scheduler.mark_failed(job.id)
                 print(f"Error executing job {job.id}", e)
             finally:
+                # release gpu
                 resource_manager.release_gpus(job.id)
 
         except Exception as e:

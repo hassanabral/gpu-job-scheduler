@@ -39,29 +39,31 @@ class ShutdownHandler:
         """
         Register signal handlers for SIGINT and SIGTERM.
         """
-        # TODO 13: Register self._handle_signal for both SIGINT and SIGTERM
-        #   - Use signal.signal(signal.SIGINT, self._handle_signal)
-        #   - Use signal.signal(signal.SIGTERM, self._handle_signal)
-        pass
+        signal.signal(signal.SIGINT, self._handle_signal)
+        signal.signal(signal.SIGTERM, self._handle_signal)
+
+
 
     def _handle_signal(self, signum, frame) -> None:
         """
         Signal handler callback.
         """
-        # TODO 14: Implement shutdown sequence:
-        #   - If self._shutdown_initiated, return (avoid duplicate shutdown)
-        #   - Set self._shutdown_initiated = True
-        #   - Print a message: "\nShutdown signal received. Finishing running jobs..."
-        #   - Set self._stop_event (this stops workers from picking up new jobs)
-        #   - Call self._resource_manager.shutdown() (wakes up threads waiting for GPUs)
-        pass
+        if self._shutdown_initiated:
+            return
+        
+        self._shutdown_initiated = True
+        print("Shut down signal received. Finishing running jobs...")
+        # stop works from picking up new jobs
+        self._stop_event.set()
+        self._resource_manager.shutdown()
+        
 
     def cleanup(self) -> None:
         """
         Final cleanup after all threads have stopped.
         """
-        # TODO 15: Release any remaining GPU allocations
-        #   - Check resource_manager._allocations (access for cleanup purposes)
-        #   - For each remaining allocation, call resource_manager.release_gpus(job_id)
-        #   - Print "Cleanup complete."
-        pass
+        for job_id, alloc in self._resource_manager._allocations.items():
+            if len(alloc) > 0:
+                self._resource_manager.release_gpus(job_id)
+        
+        print("Cleanup complete.")
