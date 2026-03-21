@@ -30,12 +30,12 @@ concurrency-project-3/
 │   ├── __init__.py                 # Package exports
 │   └── gpu_cluster_sdk.py          # Mocked GPU cluster SDK (DO NOT EDIT)
 ├── display.py                      # Rich display utilities (DO NOT EDIT)
-├── dependency_resolver.py          # ← MODIFY (TODOs 4-6)
-├── scheduler.py                    # ← MODIFY (TODOs 7-10)
-├── resource_manager.py             # ← MODIFY (TODOs 1-3)
-├── worker_pool.py                  # ← MODIFY (TODOs 11-12)
-├── shutdown_handler.py             # ← MODIFY (TODOs 13-15)
-├── app.py                          # ← MODIFY (TODOs 16-18)
+├── dependency_resolver.py          # Dependency resolution (Kahn's algorithm)
+├── scheduler.py                    # Priority-based job scheduling
+├── resource_manager.py             # GPU resource allocation
+├── worker_pool.py                  # Worker thread pool
+├── shutdown_handler.py             # Graceful shutdown handling
+├── app.py                          # Application orchestrator
 └── README.md
 ```
 
@@ -71,30 +71,30 @@ A **GPU job scheduler** that:
 
 ## Files To Modify
 
-### 1. `dependency_resolver.py` (TODOs 4-6)
-Build an adjacency list and in-degree map from job dependencies, then implement
+### `dependency_resolver.py`
+Builds an adjacency list and in-degree map from job dependencies, then implements
 Kahn's algorithm for topological sort with priority tie-breaking and cycle detection.
 
-### 2. `scheduler.py` (TODOs 7-10)
-Initialize a priority queue (max-heap) with dependency-free jobs. Implement
+### `scheduler.py`
+Initializes a priority queue (max-heap) with dependency-free jobs. Implements
 `get_next_ready_job` (pop from heap), `mark_completed` (promote dependents),
 and `mark_failed` (retry or permanently fail).
 
-### 3. `resource_manager.py` (TODOs 1-3)
-Track per-node GPU availability with a `Condition` variable. `acquire_gpus` blocks
+### `resource_manager.py`
+Tracks per-node GPU availability with a `Condition` variable. `acquire_gpus` blocks
 until a node has enough GPUs. `release_gpus` frees them and wakes waiting threads.
 
-### 4. `worker_pool.py` (TODOs 11-12)
-Worker loop: get next job, acquire GPUs, execute via SDK, handle success/failure,
-and **always** release GPUs in a `finally` block.
+### `worker_pool.py`
+Worker loop: gets next job, acquires GPUs, executes via SDK, handles success/failure,
+and **always** releases GPUs in a `finally` block.
 
-### 5. `shutdown_handler.py` (TODOs 13-15)
-Register SIGINT/SIGTERM handlers. On signal, set the stop event and call
+### `shutdown_handler.py`
+Registers SIGINT/SIGTERM handlers. On signal, sets the stop event and calls
 `resource_manager.shutdown()`. Cleanup releases any remaining allocations.
 
-### 6. `app.py` (TODOs 16-18)
-Wire everything together: resolve dependencies, create components, start 3 worker
-threads, wait for completion, and display the final summary.
+### `app.py`
+Wires everything together: resolves dependencies, creates components, starts 3 worker
+threads, waits for completion, and displays the final summary.
 
 ---
 

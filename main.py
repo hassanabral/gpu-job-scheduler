@@ -25,10 +25,9 @@ def main():
         run()
     except NotImplementedError as e:
         console.print(f"[yellow]Warning: Not yet implemented:[/yellow] {e}")
-        console.print("[dim]Complete the TODOs in resource_manager.py, dependency_resolver.py, scheduler.py, worker_pool.py, shutdown_handler.py, and app.py[/dim]")
     except TypeError as e:
         if "NoneType" in str(e):
-            console.print(f"[yellow]Warning: A function returned None -- have you implemented all the TODOs?[/yellow]")
+            console.print(f"[yellow]Warning: A function returned None.[/yellow]")
             console.print(f"[dim]Error: {e}[/dim]")
         else:
             raise

@@ -33,10 +33,7 @@ def run():
     display_job_list(jobs)
     display_dependency_graph(jobs)
 
-    # TODO 16: Resolve dependencies
-    #   - Call topological_sort(jobs) to get execution_order
-    #   - Handle CyclicDependencyError: print error and return
-    #   - Print the execution order
+    # Resolve dependencies
     try:
         execution_order = topological_sort(jobs)
     except CyclicDependencyError as e:
@@ -45,31 +42,14 @@ def run():
 
     print(f"Execution order:", ", ".join(execution_order))
 
-    # TODO 17: Initialize components
-    #   - resource_manager = ResourceManager(sdk, cluster)
-    #   - scheduler = JobScheduler(jobs, execution_order)
-    #   - stop_event = threading.Event()
-    #   - shutdown_handler = ShutdownHandler(stop_event, resource_manager, scheduler)
-    #   - shutdown_handler.register()
+    # Initialize components
     resource_manager = ResourceManager(sdk, cluster)
     scheduler = JobScheduler(jobs, execution_order)
     stop_event = threading.Event()
     shutdown_handler = ShutdownHandler(stop_event, resource_manager, scheduler)
     shutdown_handler.register()
 
-    # TODO 18: Start workers and wait for completion
-    #   - Create 3 worker threads (targeting the worker function)
-    #   - Pass: worker_id, sdk, scheduler, resource_manager, stop_event
-    #   - Set daemon=True, start each
-    #   - Record start_time
-    #   - Call scheduler.wait_for_completion(timeout=120)
-    #   - Set stop_event to stop workers
-    #   - Join all worker threads with timeout=5
-    #   - Call shutdown_handler.cleanup()
-    #   - Compute total_time
-    #   - Build results dict from scheduler.get_status_summary()
-    #   - Call display_final_summary(results)
-    
+    # Start workers and wait for completion
     wthreads = []
     for i in range(MAX_WORKERS):
         wthread = threading.Thread(target=worker, args=(i, sdk, scheduler, resource_manager, stop_event), daemon=True)
