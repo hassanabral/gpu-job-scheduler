@@ -1,7 +1,5 @@
 # GPU Job Scheduler
 
-**Practice Project 3** -- Condition Variables, Priority Queues, Topological Sort, Graceful Shutdown
-
 Schedule GPU training jobs on a simulated cluster with 4 nodes and 8 GPUs. Jobs have
 priorities, dependencies on other jobs, and varying GPU requirements. Your scheduler
 must allocate limited resources, respect the dependency DAG, handle failures with
