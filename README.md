@@ -21,7 +21,7 @@ python main.py
 ## Project Structure
 
 ```
-concurrency-project-3/
+gpu-job-scheduler/
 ├── main.py                         # Entry point (pre-built)
 ├── requirements.txt                # Dependencies
 ├── sdk_do_not_edit/
